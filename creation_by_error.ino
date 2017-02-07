@@ -78,11 +78,11 @@ void loop() {
   
 //  WiFiClient client;
 //  SyncClient client;
-  const int l_httpPort = 80;
-  if (!client.connect(g_host, l_httpPort)) {
-    Serial.println("Pubnub Connection Failed");
-    return;
-  }
+//  const int l_httpPort = 80;
+//  if (!client.connect(g_host, l_httpPort)) {
+//    Serial.println("Pubnub Connection Failed");
+//    return;
+//  }
   
   // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.
   if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
