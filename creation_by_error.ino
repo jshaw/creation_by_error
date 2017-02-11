@@ -3,6 +3,7 @@
 
 #include <Servo.h>
 #include <NewPingESP8266.h>
+#include <SimplexNoise.h>
 #include "settings.h"
 //
 #include "ESPAsyncTCP.h"
@@ -14,12 +15,16 @@
 
 NewPingESP8266 sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 Servo myservo;  // create servo object to control a servo
+SyncClient client;
 
-boolean isRunning = false;
 const int buttonPin = 2;
-int buttonState;             
+int buttonState = HIGH;             
 // the previous reading from the input pin
-int lastButtonState = HIGH;   
+int lastButtonState = HIGH;
+
+int min_degree = 0;
+int max_degree = 0;
+int buttonPushCounter = 0;
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
@@ -37,17 +42,32 @@ unsigned int requestSpeed = 10000; // How frequently are we going to send out a 
 
 int value = 0;
 
-SyncClient client;
+unsigned long previousMillis = 0;
+const long interval = 50;
+
+double n;
+float increase = 0.01;
+float x = 0.0;
+float y = 0.0;
+//int pos;
+int minAngle = 0;
+int maxAngle = 180;
 
 class Sweeper
 {
   Servo servo;              // the servo
+  SimplexNoise sn;
   int id;
   int pos;              // current servo position 
   int increment;        // increment to move for each interval
   int  updateInterval;      // interval between updates
   unsigned long lastUpdate; // last update of position
   String sweepString = "";
+
+  // number of pings collected
+  unsigned long pingTotalCount = 0;
+  // number of pings before send for simplexNoise
+  unsigned long pingRemainderValue = 50;
   
   NewPingESP8266 *sonar;
   int currentDistance;
@@ -156,26 +176,13 @@ public:
       
       sweepString.concat(tmp);
       sweepString.concat("/");
+
+      pingTotalCount++;
     }
   }
   
   void Update()
   {
-
-  // FINISH UPDATING THIS HERE!!!!
-//  if((millis() - movementTimer) > movementSpeed)  // time to update
-//  {
-//    movementTimer = millis();
-//    pos += increment;
-//    myservo.write(pos);
-//    if ((pos >= 170) || (pos <= 0))
-//    {
-//      SendBatchData();
-//      myservo.detach();
-//      myservo.attach(14);
-//      increment = -increment;
-//    }
-//  }
 
     if (pos == -1) {
       pos = 0;
@@ -185,16 +192,39 @@ public:
     if((millis() - lastUpdate) > updateInterval)  // time to update
     {
       lastUpdate = millis();
-      pos += increment;
+
+      if (buttonPushCounter == 1){
+        min_degree = 0;
+        max_degree = 170;
+        pos += increment;
+      } else {
+        min_degree = 15;
+        max_degree = 155;
+
+        n = sn.noise(x, y);
+        x += increase;
+  
+        pos = (int)map(n*100, -100, 100, minAngle, maxAngle);
+      }
+      
       servo.write(pos);
-      if ((pos >= 170) || (pos <= 0)) // end of sweep
-      {
-        // send data through serial here
-        SendBatchData();
-        // reverse direction
-        Detach();
-        Attach(9);
-        increment = -increment;
+
+      if (buttonPushCounter == 1){
+      
+        if ((pos >= max_degree) || (pos <= min_degree)) // end of sweep
+        {
+          // send data through serial here
+          SendBatchData();
+          Detach();
+          Attach(9);
+          // reverse direction
+          increment = -increment;
+        }
+      } else {
+        // Send the ping data readings on every nth count
+        if(pingTotalCount % pingRemainderValue == 0){
+          SendBatchData();
+        }
       }
     }
   }
@@ -250,8 +280,18 @@ void loop() {
       buttonState = reading;
 
       // only toggle the LED if the new button state is HIGH
+      Serial.println("*********************");
+      Serial.println(buttonState);
       if (buttonState == HIGH) {
-        isRunning = !isRunning;
+        buttonPushCounter++;
+
+        // this makes sure that it runs through 0,1,2 states
+        if(buttonPushCounter == 3){
+          buttonPushCounter = 0;
+        }
+
+        Serial.print("buttonPushCounter: ");
+        Serial.print(buttonPushCounter);
       }
     }
   }
@@ -260,7 +300,7 @@ void loop() {
   // it'll be the lastButtonState:
   lastButtonState = reading;
 
-  if(isRunning == true){
+  if(buttonPushCounter != 0){
     // update
     if(sweeper.isAttached() == true){
       sweeper.Update();
@@ -275,7 +315,7 @@ void loop() {
     }
   }
 
-  if(isRunning == true){
+  if(buttonPushCounter != 0){
     // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.
     if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
       pingTimer += pingSpeed;      // Set the next ping time.
@@ -293,15 +333,7 @@ void loop() {
     // ============
     //DATA FORMAT : http://pubsub.pubnub.com /publish/pub-key/sub-key/signature/channel/callback/message
   
-//    String stringOne = "{\"num\":";
-//    stringOne += value;
-//    stringOne += ", \"txt\":\"Yo!\"}";
-//    char charBuf[200];
-//    stringOne.toCharArray(charBuf, 200);
-  
-//    String json = "{\"text\":" + String(value) + "}";
     String to_publish = sweeper.GetPublishData();
-//    String json = "{\"text\":" + String(to_publish) + "}";
     String json = String(to_publish);
     
     String url = "/publish/";
@@ -312,7 +344,6 @@ void loop() {
     url += g_channel;
     url += "/0/";
     url += "\"" + String(to_publish) + "\"";
-//    url += urlencode(json);
     
     Serial.println(url);
 
