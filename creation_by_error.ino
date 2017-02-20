@@ -9,8 +9,8 @@
 #include "ESPAsyncTCP.h"
 #include "SyncClient.h"
 
-#define TRIGGER_PIN   12 // Arduino pin tied to trigger pin on ping sensor.
-#define ECHO_PIN      13 // Arduino pin tied to echo pin on ping sensor.
+#define TRIGGER_PIN   15 // Arduino pin tied to trigger pin on ping sensor.
+#define ECHO_PIN      0 // Arduino pin tied to echo pin on ping sensor.
 #define MAX_DISTANCE 400 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
 
 NewPingESP8266 sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
@@ -24,7 +24,7 @@ int lastButtonState = HIGH;
 
 int min_degree = 0;
 int max_degree = 0;
-int buttonPushCounter = 4;
+int buttonPushCounter = 0;
 int maxButtonPushCounter = 5;
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
@@ -54,6 +54,10 @@ float y = 0.0;
 int minAngle = 0;
 int maxAngle = 180;
 
+int redPin = 14;
+int greenPin = 13;
+int bluePin = 12;
+
 class Sweeper
 {
   Servo servo;              // the servo
@@ -81,7 +85,7 @@ class Sweeper
 
   // this section is for interaction smoothing
   //===========================
-  static const int numReadings = 6;
+  static const int numReadings = 5;
   // the readings from the analog input
   int readings[numReadings];
   // the index of the current reading
@@ -118,7 +122,7 @@ public:
     lowPos = 70;
     highPos = 110;
     lowDistance = 30;
-    highDistance = 100;
+    highDistance = 90;
 
     pausedPreviousMillis = 0;
     pausedInterval = 2000;
@@ -277,6 +281,7 @@ public:
         x += increase;
   
         pos = (int)map(n*100, -100, 100, minAngle, maxAngle);
+        
       } else if (buttonPushCounter == 3){
         // sweep interact
         min_degree = 0;
@@ -284,9 +289,7 @@ public:
         
         if (pos > lowPos && pos < highPos) {
           // if(currentDistance < 100 && currentDistance > 5 ){
-          Serial.println("*************");
           if (average < highDistance && average > lowDistance ) {
-            Serial.println("????????????????");
             
             if (pos > 90) {
               pos = 160;
@@ -353,7 +356,7 @@ public:
         return;
       } else {
         if(servo.attached() == false){
-          servo.attach(9);
+          servo.attach(16);
         }
         servo.write(pos);
       }
@@ -364,8 +367,8 @@ public:
         {
           // send data through serial here
           SendBatchData();
-          Detach();
-          Attach(9);
+          servo.detach();
+          servo.attach(16);
           // reverse direction
           increment = -increment;
         }
@@ -396,6 +399,7 @@ void setup() {
   
   Serial.printf("WiFi Connected!\n");
   Serial.println(WiFi.localIP());
+  Serial.println("MAC Address: " + WiFi.macAddress());
 
   const int l_httpPort = 80;
   if(!client.connect(g_host, l_httpPort)){
@@ -406,8 +410,12 @@ void setup() {
   
   pingTimer = millis(); // Start now.
 
-  sweeper.Attach(14);
+  sweeper.Attach(16);
   sweeper.SetPos(90);
+
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);  
 }
 
 int measurement = 0;
@@ -446,6 +454,19 @@ void loop() {
     }
   }
 
+  if(buttonPushCounter == 0){
+    setColor(0, 0, 0);
+  } else if(buttonPushCounter == 1){
+    setColor(255, 0, 0);
+  } else if(buttonPushCounter == 2){
+    setColor(0, 255, 0);
+  } else if(buttonPushCounter == 3){
+    setColor(0, 0, 255);
+  } else if(buttonPushCounter == 4){
+    setColor(255, 255, 255);
+  }
+  
+
   // save the reading.  Next time through the loop,
   // it'll be the lastButtonState:
   lastButtonState = reading;
@@ -455,7 +476,7 @@ void loop() {
     if(sweeper.isAttached() == true){
       sweeper.Update();
     } else {
-      sweeper.Attach(9);
+      sweeper.Attach(16);
       sweeper.Update();  
     }
   } else {
@@ -469,11 +490,11 @@ void loop() {
     // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.
     if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
       pingTimer += pingSpeed;      // Set the next ping time.
-//      Serial.print("Ping: ");
+      Serial.print("Ping: ");
       measurement = sonar.ping_cm();
       sweeper.SetDistance(measurement);
-//      Serial.print(measurement); // Send ping, get distance in cm and print result (0 = outside set distance range)
-//      Serial.println("cm");
+      Serial.print(measurement); // Send ping, get distance in cm and print result (0 = outside set distance range)
+      Serial.println("cm");
     }
   }
 
@@ -560,4 +581,11 @@ String urlencode(String str)
     }
     return encodedString;
     
+}
+
+void setColor(int red, int green, int blue)
+{
+  analogWrite(redPin, red);
+  analogWrite(greenPin, green);
+  analogWrite(bluePin, blue);  
 }
