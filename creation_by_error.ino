@@ -25,6 +25,7 @@ int lastButtonState = HIGH;
 int min_degree = 0;
 int max_degree = 0;
 int buttonPushCounter = 0;
+int maxButtonPushCounter = 5;
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
@@ -74,6 +75,26 @@ class Sweeper
 
   boolean publish_data = false;
 
+  // this section is for interaction smoothing
+  //===========================
+  static const int numReadings = 3;
+  // the readings from the analog input
+  int readings[numReadings];
+  // the index of the current reading
+  int readIndex = 0;
+  // the running total
+  int total = 0;
+  // the average
+  int average = 0;
+  // END ===========================
+
+  //=====================
+  int lowPos;
+  int highPos;
+  int lowDistance;
+  int highDistance;
+  //=====================
+
   // =============
   // these two vars are pure debug variels to control what gets sent over serial
   boolean sendJSON = true;
@@ -89,6 +110,16 @@ public:
     increment = 2;
     id = constrain(ide, 0, 13);
     pos = position;
+
+    lowPos = 70;
+    highPos = 110;
+    lowDistance = 30;
+    highDistance = 100;
+
+    // initialize all the readings to 0:
+    for (int thisReading = 0; thisReading < numReadings; thisReading++) {
+      readings[thisReading] = 0;
+    }
   }
   
   void Attach(int pin)
@@ -117,6 +148,31 @@ public:
   void SetDistance(int d)
   {
     currentDistance = d;
+
+
+    // this if statement is to make sure that it doesn't read wierd values while a bit slow
+    // at the top or bottom of the rotation
+    if(pos < 170 || pos > 10){
+      // this is apart of the smoothing algorithm
+      total = total - readings[readIndex];
+      readings[readIndex] = d;
+      total = total + readings[readIndex];
+      readIndex = readIndex + 1;
+  
+      // if we're at the end of the array...
+      if (readIndex >= numReadings) {
+        // ...wrap around to the beginning:
+        readIndex = 0;
+      }
+  
+      // calculate the average:
+      average = total / numReadings;
+    }
+
+    Serial.println("______________");
+    Serial.println(currentDistance);
+    Serial.println(average);
+    Serial.println("===============");
 
     if(storeDataJSON == true){
       StoreData(currentDistance);
@@ -194,10 +250,12 @@ public:
       lastUpdate = millis();
 
       if (buttonPushCounter == 1){
+        // Sweep
         min_degree = 0;
         max_degree = 170;
         pos += increment;
-      } else {
+      } else  if (buttonPushCounter == 2){
+        // Noise
         min_degree = 15;
         max_degree = 155;
 
@@ -205,12 +263,52 @@ public:
         x += increase;
   
         pos = (int)map(n*100, -100, 100, minAngle, maxAngle);
+      } else if (buttonPushCounter == 3){
+        // sweep interact
+        min_degree = 0;
+        max_degree = 170;
+        
+        if (pos > lowPos && pos < highPos) {
+          // if(currentDistance < 100 && currentDistance > 5 ){
+          Serial.println("*************");
+          if (average < highDistance && average > lowDistance ) {
+            Serial.println("????????????????");
+            
+            if (pos > 90) {
+              pos = 160;
+            } else if (pos <= 90) {
+              pos = 10;
+            }
+
+//              distancePreviousMillis = millis();
+//              paused = true;
+//            servo.write(pos);
+//              // detatch servo here
+            // pos += increment;
+          } else {
+//
+//              // something is happing here that is a bit funny.
+//              // It doesn't allow for a full reset to the top or bottom sometimes
+//              if (paused == true) {
+//                return;
+//              }
+//
+            Serial.println("^^^^^^^^^^^^^^^^^^");
+            pos += increment;
+          }
+        } else {
+          Serial.println("\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/");
+          pos += increment;
+        }
+        
+      } else if (buttonPushCounter == 4) {
+        // noise interact
       }
       
       servo.write(pos);
 
       if (buttonPushCounter == 1){
-      
+        // sweep
         if ((pos >= max_degree) || (pos <= min_degree)) // end of sweep
         {
           // send data through serial here
@@ -220,12 +318,29 @@ public:
           // reverse direction
           increment = -increment;
         }
-      } else {
+      } else if (buttonPushCounter == 2){
+        // Noise
         // Send the ping data readings on every nth count
         if(pingTotalCount % pingRemainderValue == 0){
           SendBatchData();
         }
+      } else if (buttonPushCounter == 3){
+        // sweep interact
+        // sweep
+        if ((pos >= max_degree) || (pos <= min_degree)) // end of sweep
+        {
+          // send data through serial here
+//          SendBatchData();
+          Detach();
+          Attach(9);
+          // reverse direction
+          increment = -increment;
+        }
+      
+      } else if (buttonPushCounter == 4){
+        // noiseinteract
       }
+      
     }
   }
 };
@@ -286,7 +401,7 @@ void loop() {
         buttonPushCounter++;
 
         // this makes sure that it runs through 0,1,2 states
-        if(buttonPushCounter == 3){
+        if(buttonPushCounter == maxButtonPushCounter){
           buttonPushCounter = 0;
         }
 
@@ -319,11 +434,11 @@ void loop() {
     // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.
     if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
       pingTimer += pingSpeed;      // Set the next ping time.
-      Serial.print("Ping: ");
+//      Serial.print("Ping: ");
       measurement = sonar.ping_cm();
       sweeper.SetDistance(measurement);
-      Serial.print(measurement); // Send ping, get distance in cm and print result (0 = outside set distance range)
-      Serial.println("cm");
+//      Serial.print(measurement); // Send ping, get distance in cm and print result (0 = outside set distance range)
+//      Serial.println("cm");
     }
   }
 
