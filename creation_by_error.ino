@@ -24,7 +24,7 @@ int lastButtonState = HIGH;
 
 int min_degree = 0;
 int max_degree = 0;
-int buttonPushCounter = 0;
+int buttonPushCounter = 4;
 int maxButtonPushCounter = 5;
 
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
@@ -65,6 +65,10 @@ class Sweeper
   unsigned long lastUpdate; // last update of position
   String sweepString = "";
 
+  unsigned long pausedPreviousMillis;
+  unsigned long pausedInterval;
+  bool paused;
+
   // number of pings collected
   unsigned long pingTotalCount = 0;
   // number of pings before send for simplexNoise
@@ -77,7 +81,7 @@ class Sweeper
 
   // this section is for interaction smoothing
   //===========================
-  static const int numReadings = 3;
+  static const int numReadings = 6;
   // the readings from the analog input
   int readings[numReadings];
   // the index of the current reading
@@ -116,6 +120,10 @@ public:
     lowDistance = 30;
     highDistance = 100;
 
+    pausedPreviousMillis = 0;
+    pausedInterval = 2000;
+    paused = false;
+
     // initialize all the readings to 0:
     for (int thisReading = 0; thisReading < numReadings; thisReading++) {
       readings[thisReading] = 0;
@@ -152,7 +160,7 @@ public:
 
     // this if statement is to make sure that it doesn't read wierd values while a bit slow
     // at the top or bottom of the rotation
-    if(pos < 170 || pos > 10){
+    if((pos < 170 || pos > 10) || paused == false){
       // this is apart of the smoothing algorithm
       total = total - readings[readIndex];
       readings[readIndex] = d;
@@ -169,10 +177,10 @@ public:
       average = total / numReadings;
     }
 
-    Serial.println("______________");
-    Serial.println(currentDistance);
-    Serial.println(average);
-    Serial.println("===============");
+//    Serial.println("______________");
+//    Serial.println(currentDistance);
+//    Serial.println(average);
+//    Serial.println("===============");
 
     if(storeDataJSON == true){
       StoreData(currentDistance);
@@ -245,6 +253,12 @@ public:
       servo.write(pos);
     }
 
+    if ((millis() - pausedPreviousMillis) > pausedInterval) {
+      // reattach servo
+      paused = false;
+    }
+    
+
     if((millis() - lastUpdate) > updateInterval)  // time to update
     {
       lastUpdate = millis();
@@ -280,34 +294,71 @@ public:
               pos = 10;
             }
 
-//              distancePreviousMillis = millis();
-//              paused = true;
-//            servo.write(pos);
-//              // detatch servo here
-            // pos += increment;
+            // potential put a pause in here..
+            // paused = true;
           } else {
-//
-//              // something is happing here that is a bit funny.
-//              // It doesn't allow for a full reset to the top or bottom sometimes
-//              if (paused == true) {
-//                return;
-//              }
-//
-            Serial.println("^^^^^^^^^^^^^^^^^^");
             pos += increment;
           }
         } else {
-          Serial.println("\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/");
           pos += increment;
         }
         
       } else if (buttonPushCounter == 4) {
         // noise interact
-      }
-      
-      servo.write(pos);
+        min_degree = 15;
+        max_degree = 155;
 
-      if (buttonPushCounter == 1){
+        if(paused == false){
+          n = sn.noise(x, y);
+          x += increase;
+          
+          pos = (int)map(n*100, -100, 100, minAngle, maxAngle);
+        }
+
+        if(paused == false){
+          if (pos > lowPos && pos < highPos) {
+            highDistance = 80;
+            if (average < highDistance && average > lowDistance ) {
+  //            if (pos > 90) {
+  //              pos = 160;
+  //            } else if (pos <= 90) {
+  //              pos = 10;
+  //            }
+  //
+              servo.write(pos+10);
+              delay(100);
+              servo.write(pos-10);
+              delay(100);
+              servo.write(pos);
+              delay(100);
+  //            servo.detach();
+              // potential put a pause in here..
+              pausedPreviousMillis = millis();
+              paused = true;
+            } else {
+  //            pos += increment;
+            }
+          } else {
+  //          pos += increment;
+          }
+        }
+        
+//        pausedPreviousMillis = millis();
+//        paused = true;
+      }
+
+      // 
+      // =================
+      if (paused == true) {
+        return;
+      } else {
+        if(servo.attached() == false){
+          servo.attach(9);
+        }
+        servo.write(pos);
+      }
+
+      if (buttonPushCounter == 1 || buttonPushCounter == 3){
         // sweep
         if ((pos >= max_degree) || (pos <= min_degree)) // end of sweep
         {
@@ -318,29 +369,13 @@ public:
           // reverse direction
           increment = -increment;
         }
-      } else if (buttonPushCounter == 2){
+      } else if (buttonPushCounter == 2 || buttonPushCounter == 4){
         // Noise
         // Send the ping data readings on every nth count
         if(pingTotalCount % pingRemainderValue == 0){
           SendBatchData();
         }
-      } else if (buttonPushCounter == 3){
-        // sweep interact
-        // sweep
-        if ((pos >= max_degree) || (pos <= min_degree)) // end of sweep
-        {
-          // send data through serial here
-//          SendBatchData();
-          Detach();
-          Attach(9);
-          // reverse direction
-          increment = -increment;
-        }
-      
-      } else if (buttonPushCounter == 4){
-        // noiseinteract
       }
-      
     }
   }
 };
