@@ -13,6 +13,10 @@
 #define ECHO_PIN      0 // Arduino pin tied to echo pin on ping sensor.
 #define MAX_DISTANCE 400 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
 
+//uncomment this line if using a Common Anode LED
+//#define COMMON_ANODE true;
+//const bool COMMON_ANODE = true;
+
 NewPingESP8266 sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 Servo myservo;  // create servo object to control a servo
 SyncClient client;
@@ -55,8 +59,8 @@ int minAngle = 0;
 int maxAngle = 180;
 
 int redPin = 14;
-int greenPin = 13;
-int bluePin = 12;
+int greenPin = 12;
+int bluePin = 13;
 
 class Sweeper
 {
@@ -160,7 +164,9 @@ public:
   void SetDistance(int d)
   {
     currentDistance = d;
-
+    if(d == 0){
+      return;
+    }
 
     // this if statement is to make sure that it doesn't read wierd values while a bit slow
     // at the top or bottom of the rotation
@@ -415,7 +421,7 @@ void setup() {
 
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
-  pinMode(bluePin, OUTPUT);  
+  pinMode(bluePin, OUTPUT);
 }
 
 int measurement = 0;
@@ -455,15 +461,16 @@ void loop() {
   }
 
   if(buttonPushCounter == 0){
-    setColor(0, 0, 0);
-  } else if(buttonPushCounter == 1){
     setColor(255, 0, 0);
-  } else if(buttonPushCounter == 2){
+  } else if(buttonPushCounter == 1){
     setColor(0, 255, 0);
-  } else if(buttonPushCounter == 3){
+  } else if(buttonPushCounter == 2){
     setColor(0, 0, 255);
+  } else if(buttonPushCounter == 3){
+    setColor(255, 0, 255);
   } else if(buttonPushCounter == 4){
     setColor(255, 255, 255);
+    
   }
   
 
@@ -523,7 +530,7 @@ void loop() {
       Serial.println(client.available());
       Serial.println(client.connected());
       while(client.connected() && client.available() == 0){
-        delay(1);
+        delay(2);
         Serial.print("---");
       }
       while(client.available()){
@@ -535,9 +542,9 @@ void loop() {
 //       Serial.println("Where STOP USED TO BE");
 //      }
     } else {
-      client.stop();
+//      client.stop();
       Serial.println("Send Failed");
-      while(client.connected()) delay(0);
+      //while(client.connected()) delay(0);
     }
 
     Serial.println();
@@ -585,7 +592,12 @@ String urlencode(String str)
 
 void setColor(int red, int green, int blue)
 {
-  analogWrite(redPin, red);
-  analogWrite(greenPin, green);
-  analogWrite(bluePin, blue);  
+//  if(COMMON_ANODE == true){
+    red = 255 - red;
+    green = 255 - green;
+    blue = 255 - blue;
+//  }
+  digitalWrite(redPin, red);
+  digitalWrite(greenPin, green);
+  digitalWrite(bluePin, blue);  
 }
