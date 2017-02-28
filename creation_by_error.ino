@@ -65,11 +65,11 @@ int bluePin = 13;
 // Auto rest timer
 // ======================
 unsigned long lastAutoRest = 0;
-long lastAutoRestDelay = 30000;
+long lastAutoRestDelay = 60000;
 
 // ideal would be run for 900000 (15 min)
 // rest for 30000 (30 seconds)
-long lastAutoRestDelayShort = 30000;
+long lastAutoRestDelayShort = 60000;
 long lastAutoRestDelayLong = 900000;
 
 class Sweeper
@@ -560,11 +560,15 @@ void loop() {
     // Notice how there's no delays in this sketch to allow you to do other processing in-line while doing distance pings.
     if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
       pingTimer += pingSpeed;      // Set the next ping time.
-      Serial.print("Ping: ");
+      
+      //Serial.print("Ping: ");
+      
       measurement = sonar.ping_cm();
       sweeper.SetDistance(measurement);
-      Serial.print(measurement); // Send ping, get distance in cm and print result (0 = outside set distance range)
-      Serial.println("cm");
+      
+      // Send ping, get distance in cm and print result (0 = outside set distance range)
+//      Serial.print(measurement); 
+//      Serial.println("cm");
     }
   }
 
