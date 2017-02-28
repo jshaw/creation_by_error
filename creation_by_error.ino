@@ -389,6 +389,7 @@ public:
   }
 };
 
+const int l_httpPort = 80;
 Sweeper sweeper(0, 40, sonar, 0);
 
 void setup() {
@@ -407,7 +408,6 @@ void setup() {
   Serial.println(WiFi.localIP());
   Serial.println("MAC Address: " + WiFi.macAddress());
 
-  const int l_httpPort = 80;
   if(!client.connect(g_host, l_httpPort)){
     Serial.println("Connect Failed");
     Serial.println("Pubnub Connection Failed");
@@ -428,6 +428,43 @@ int measurement = 0;
 String JSONString = "";
 
 void loop() {
+
+  // Hopefully this will handle the failing to reconnect if the chip disconnects from the network
+
+  if(!client.connected()){
+//    Serial.println(WiFi.waitForConnectResult());
+//    Serial.println(client.connect(g_host, l_httpPort));
+//    Serial.println("-------");
+  
+    if(WiFi.waitForConnectResult() != 3){
+      // reconnect
+      Serial.println("DROPPED CONNECTION -- RECONNECT");
+      Serial.println("-------");
+      WiFi.begin(WIFI_AP, WIFI_PASSWORD);
+    }
+    
+  //  if(!client.connect(g_host, l_httpPort)){
+  //    WiFi.disconnect();
+  //    WiFi.begin(WIFI_AP, WIFI_PASSWORD);
+  //    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+  //      Serial.printf("WiFi Failed!\n");
+  //      return;
+  //    }
+  //  }
+    
+  //  Serial.printf("WiFi Connected!\n");
+  //  Serial.println(WiFi.localIP());
+  //  Serial.println("MAC Address: " + WiFi.macAddress());
+  //
+    if(!client.connect(g_host, l_httpPort)){
+      Serial.println("Connect Failed");
+      Serial.println("Pubnub Connection Failed");
+      return;
+    }
+  }
+
+
+  
   int reading = digitalRead(buttonPin);
 
   if (reading != lastButtonState) {
