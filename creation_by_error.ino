@@ -62,6 +62,16 @@ int redPin = 14;
 int greenPin = 12;
 int bluePin = 13;
 
+// Auto rest timer
+// ======================
+unsigned long lastAutoRest = 0;
+long lastAutoRestDelay = 30000;
+
+// ideal would be run for 900000 (15 min)
+// rest for 30000 (30 seconds)
+long lastAutoRestDelayShort = 30000;
+long lastAutoRestDelayLong = 900000;
+
 class Sweeper
 {
   Servo servo;              // the servo
@@ -460,6 +470,22 @@ void loop() {
       Serial.println("Connect Failed");
       Serial.println("Pubnub Connection Failed");
       return;
+    }
+  }
+
+  // This logic allows the installation to take breaks
+  // This will help prevent overheating of the sensor
+  // Example, it will run for 10 minutes and take a 30 second break and restart back at the 
+  // noise setting.
+  if ((millis() - lastAutoRest) > lastAutoRestDelay) {
+    lastAutoRest = millis();
+
+    if(lastAutoRestDelay == lastAutoRestDelayShort){
+      lastAutoRestDelay = lastAutoRestDelayLong;
+      buttonPushCounter = 2;
+    } else if(lastAutoRestDelay == lastAutoRestDelayLong){
+      lastAutoRestDelay = lastAutoRestDelayShort;
+      buttonPushCounter = 0;
     }
   }
 
