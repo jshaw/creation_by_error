@@ -70,7 +70,10 @@ long lastAutoRestDelay = 60000;
 // ideal would be run for 900000 (15 min)
 // rest for 30000 (30 seconds)
 long lastAutoRestDelayShort = 60000;
-long lastAutoRestDelayLong = 900000;
+// 10 mins
+long lastAutoRestDelayLong = 600000;
+// 15 mins
+//long lastAutoRestDelayLong = 900000;
 
 class Sweeper
 {
@@ -304,7 +307,6 @@ public:
         max_degree = 170;
         
         if (pos > lowPos && pos < highPos) {
-          // if(currentDistance < 100 && currentDistance > 5 ){
           if (average < highDistance && average > lowDistance ) {
             
             if (pos > 90) {
@@ -338,32 +340,24 @@ public:
           if (pos > lowPos && pos < highPos) {
             highDistance = 80;
             if (average < highDistance && average > lowDistance ) {
-  //            if (pos > 90) {
-  //              pos = 160;
-  //            } else if (pos <= 90) {
-  //              pos = 10;
-  //            }
-  //
+
               servo.write(pos+10);
               delay(100);
               servo.write(pos-10);
               delay(100);
               servo.write(pos);
               delay(100);
-  //            servo.detach();
+
               // potential put a pause in here..
               pausedPreviousMillis = millis();
               paused = true;
             } else {
-  //            pos += increment;
+              // keep empty
             }
           } else {
-  //          pos += increment;
+            // keep empty
           }
         }
-        
-//        pausedPreviousMillis = millis();
-//        paused = true;
       }
 
       // 
@@ -439,12 +433,8 @@ String JSONString = "";
 
 void loop() {
 
-  // Hopefully this will handle the failing to reconnect if the chip disconnects from the network
-
+  // This should handle the failing to reconnect if the chip disconnects from the network
   if(!client.connected()){
-//    Serial.println(WiFi.waitForConnectResult());
-//    Serial.println(client.connect(g_host, l_httpPort));
-//    Serial.println("-------");
   
     if(WiFi.waitForConnectResult() != 3){
       // reconnect
@@ -453,19 +443,6 @@ void loop() {
       WiFi.begin(WIFI_AP, WIFI_PASSWORD);
     }
     
-  //  if(!client.connect(g_host, l_httpPort)){
-  //    WiFi.disconnect();
-  //    WiFi.begin(WIFI_AP, WIFI_PASSWORD);
-  //    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-  //      Serial.printf("WiFi Failed!\n");
-  //      return;
-  //    }
-  //  }
-    
-  //  Serial.printf("WiFi Connected!\n");
-  //  Serial.println(WiFi.localIP());
-  //  Serial.println("MAC Address: " + WiFi.macAddress());
-  //
     if(!client.connect(g_host, l_httpPort)){
       Serial.println("Connect Failed");
       Serial.println("Pubnub Connection Failed");
@@ -482,14 +459,14 @@ void loop() {
 
     if(lastAutoRestDelay == lastAutoRestDelayShort){
       lastAutoRestDelay = lastAutoRestDelayLong;
-      buttonPushCounter = 2;
+      int tmp_random_val = random(1,4);
+      // buttonPushCounter = 2;
+      buttonPushCounter  = tmp_random_val;
     } else if(lastAutoRestDelay == lastAutoRestDelayLong){
       lastAutoRestDelay = lastAutoRestDelayShort;
       buttonPushCounter = 0;
     }
   }
-
-
   
   int reading = digitalRead(buttonPin);
 
@@ -561,7 +538,7 @@ void loop() {
     if (millis() >= pingTimer) {   // pingSpeed milliseconds since last ping, do another ping.
       pingTimer += pingSpeed;      // Set the next ping time.
       
-      //Serial.print("Ping: ");
+//      Serial.print("Ping: ");
       
       measurement = sonar.ping_cm();
       sweeper.SetDistance(measurement);
